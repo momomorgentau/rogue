@@ -6,13 +6,34 @@
 #include <windows.h>
 using namespace std;
 
-//ハイパーパラメータ
-int h_cnt = 0;
-int h_mSecond = 2000;
-int h_minWidth = 6;
-int h_minHeight = 6;
-int h_maxRoomNum = 10;
 
+enum Algorithm
+{
+	Anahori,
+	Divide
+};
+
+//ハイパーパラメータ
+
+//描画用の待機時間
+int h_mSecond = 2000;
+//部屋の幅の最小値
+int h_minWidth = 6;
+//部屋の高さの最小値
+int h_minHeight = 6;
+//部屋数の最大値
+int h_maxRoomNum = 10;
+//アルゴリズムの指定
+int h_Algorithm = Anahori;
+//マップの幅（穴掘り法では奇数を指定）
+int h_Width = 33;
+//マップの高さ（穴掘り法では奇数を指定）
+int h_Height = 33;
+
+//※穴掘り法を再帰関数にて実装しているため、幅高さが大きいとスタックオーバーフローを起こす
+//繰り返しにて実装した方が無難？(私の環境では30*30程度でオーバーフローします)
+
+//マップのクラス
 class Map
 {
 public:
@@ -97,7 +118,7 @@ public:
 
 	//区間分割
 	//上下左右の座標と部屋番号を取得
-	void InsertDevideArea(int left, int top, int right, int bottom,int id)
+	void InsertDivideArea(int left, int top, int right, int bottom, int id)
 	{
 		_divideArea.emplace_back();
 		int s = _divideArea.size();
@@ -110,7 +131,7 @@ public:
 
 	//分割する線
 	//始点のxy座標、終点のxy座標、方向 0-> ver 1->hor
-	void InsertDivideLine(int sx, int sy, int tx, int ty, int dir) 
+	void InsertDivideLine(int sx, int sy, int tx, int ty, int dir)
 	{
 		_divideLine.emplace_back();
 		int s = _divideLine.size();
@@ -136,7 +157,7 @@ public:
 	//マップを表示
 	void Show()
 	{
-		//system("cls");
+		system("cls");
 
 		for (auto i : _ground)
 		{
@@ -170,18 +191,16 @@ int GetRandomInt(int s, int t)
 void AreaDivide(Map& map)
 {
 	int lowerWidth = 0;
-	int upperWidth = map._width-1;
+	int upperWidth = map._width - 1;
 	int lowerHeight = 0;
-	int upperHeight = map._height-1;
+	int upperHeight = map._height - 1;
 	int roomId = 0;
 
 	bool isVertical;
 	if (GetRandomInt(0, 1) & 1) isVertical = true;
 	else isVertical = false;
-	/*
-	if (upperWidth >= upperHeight) isVertical = true;
-	else isVertical = false;
-	*/
+
+
 	while (1)
 	{
 		//分割できない条件
@@ -199,32 +218,32 @@ void AreaDivide(Map& map)
 			dividePoint = GetRandomInt(lowerWidth + 2 + h_minWidth, upperWidth - h_minWidth - 2);
 			if ((upperWidth + lowerWidth) / 2 < dividePoint)
 			{
-				map.InsertDevideArea(dividePoint + 2, lowerHeight + 1, upperWidth - 1, upperHeight - 1,roomId);
-				upperWidth = dividePoint-1;
+				map.InsertDivideArea(dividePoint + 2, lowerHeight + 1, upperWidth - 1, upperHeight - 1, roomId);
+				upperWidth = dividePoint - 1;
 			}
 			else
 			{
-				map.InsertDevideArea(lowerWidth + 1, lowerHeight + 1, dividePoint - 2, upperHeight - 1,roomId);
-				lowerWidth = dividePoint+1;
+				map.InsertDivideArea(lowerWidth + 1, lowerHeight + 1, dividePoint - 2, upperHeight - 1, roomId);
+				lowerWidth = dividePoint + 1;
 			}
-			map.InsertDivideLine(dividePoint,lowerHeight+1,dividePoint,upperHeight-1, map.Vertical);
+			map.InsertDivideLine(dividePoint, lowerHeight + 1, dividePoint, upperHeight - 1, map.Vertical);
 			isVertical = false;
 		}
 		//横に分割
 		else
 		{
-			dividePoint = GetRandomInt(lowerHeight +h_minHeight + 2, upperHeight - h_minHeight - 2);
+			dividePoint = GetRandomInt(lowerHeight + h_minHeight + 2, upperHeight - h_minHeight - 2);
 			if ((upperHeight + lowerHeight) / 2 < dividePoint)
 			{
-				map.InsertDevideArea(lowerWidth+1, dividePoint + 2, upperWidth - 1, upperHeight - 1,roomId);
-				upperHeight = dividePoint-1;
+				map.InsertDivideArea(lowerWidth + 1, dividePoint + 2, upperWidth - 1, upperHeight - 1, roomId);
+				upperHeight = dividePoint - 1;
 			}
 			else
 			{
-				map.InsertDevideArea(lowerWidth + 1, lowerHeight + 1, upperWidth - 1, dividePoint - 2,roomId);
-				lowerHeight = dividePoint+1;
+				map.InsertDivideArea(lowerWidth + 1, lowerHeight + 1, upperWidth - 1, dividePoint - 2, roomId);
+				lowerHeight = dividePoint + 1;
 			}
-			map.InsertDivideLine(lowerWidth+1, dividePoint, upperWidth -1, dividePoint, map.Horizontal);
+			map.InsertDivideLine(lowerWidth + 1, dividePoint, upperWidth - 1, dividePoint, map.Horizontal);
 
 			isVertical = true;
 		}
@@ -233,9 +252,9 @@ void AreaDivide(Map& map)
 }
 
 //分割した区間に小さい部屋を入れる。
-void CreateRoom(Map& map) 
+void CreateRoom(Map& map)
 {
-	for (auto v : map._divideArea) 
+	for (auto v : map._divideArea)
 	{
 		int left = v[0];
 		int top = v[1];
@@ -245,36 +264,33 @@ void CreateRoom(Map& map)
 		int roomLeft = GetRandomInt(left, right - h_minWidth + 1);
 		int roomRight = GetRandomInt(roomLeft + h_minWidth - 1, right);
 		int roomTop = GetRandomInt(top, bottom - h_minHeight + 1);
-		int roomBottom = GetRandomInt(roomTop+h_minHeight-1,bottom);
+		int roomBottom = GetRandomInt(roomTop + h_minHeight - 1, bottom);
 
-		map.InsertDivideRoom(roomLeft,roomTop,roomRight,roomBottom);
+		map.InsertDivideRoom(roomLeft, roomTop, roomRight, roomBottom);
 	}
 }
 
 //部屋から通路を伸ばす
+//通路はマップに書き込む
 void CreateRoute(Map& map)
 {
 	int cnt = 0;
-	int size = map._divideLine.size()-1;
-	for (auto v : map._divideRoom) 
+	int size = map._divideLine.size() - 1;
+
+	for (auto v : map._divideLine)
 	{
-		for (auto i : v) cout << i << " ";
-		cout << endl;
-	}
-	cout << size << endl;
-	for (auto v : map._divideLine) 
-	{
+		//通路数は部屋数+1であるため、最後の通路は無視する
 		if (cnt >= size) break;
-		cout << cnt << endl;
+
 		int sx = v[0];
 		int sy = v[1];
 		int tx = v[2];
 		int ty = v[3];
 		int dir = v[4];
 
+		//部屋情報の取得
 		auto roomBefore = map._divideRoom[cnt];
-		auto roomAfter = map._divideRoom[cnt+1];
-		cout << roomAfter[0] << " " << roomAfter[1] << " " << roomAfter[2] << " " << roomAfter[3] << endl;
+		auto roomAfter = map._divideRoom[cnt + 1];
 
 		int leftBefore = roomBefore[0];
 		int topBefore = roomBefore[1];
@@ -285,33 +301,49 @@ void CreateRoute(Map& map)
 		int topAfter = roomAfter[1];
 		int rightAfter = roomAfter[2];
 		int bottomAfter = roomAfter[3];
-		/*
-		if (dir == map.Vertical) 
+
+		//縦に線が引かれている場合
+		if (dir == map.Vertical)
 		{
+			//部屋のどこから線を伸ばすのかを決定。
 			int routeBefore = GetRandomInt(topBefore + 1, bottomBefore - 1);
 			int routeAfter = GetRandomInt(topAfter + 1, bottomAfter - 1);
-
-			if (leftBefore > leftAfter) swap(leftBefore,leftAfter);
+			//線を挟んで2つの部屋がどちらにあるかで場合分け。
+			if (leftBefore < leftAfter)
+			{
+				map.AllSet(rightBefore, routeBefore, sx, routeBefore, map.Route);
+				map.AllSet(sx, routeAfter, leftAfter, routeAfter, map.Route);
+			}
+			else
+			{
+				map.AllSet(rightAfter, routeAfter, sx, routeAfter, map.Route);
+				map.AllSet(sx, routeBefore, leftBefore, routeBefore, map.Route);
+			}
+			//伸ばした線の間を結ぶ
 			if (routeBefore > routeAfter) swap(routeBefore, routeAfter);
-			map.AllSet(leftBefore, routeBefore, sx, routeBefore,map.Route);
-			map.AllSet(sx, routeAfter, leftAfter, routeAfter, map.Route);
-			map.AllSet(sx, routeBefore, sx,routeAfter,map.Route);
-			
+			map.AllSet(sx, routeBefore, sx, routeAfter, map.Route);
+
 		}
-		else 
+		else
 		{
 			int routeBefore = GetRandomInt(leftBefore + 1, rightBefore - 1);
 			int routeAfter = GetRandomInt(leftAfter + 1, rightAfter - 1);
-			
-			if (topBefore > topAfter) swap(topBefore, topAfter);
-			if (routeBefore > routeAfter) swap(routeBefore, routeAfter);
-			map.AllSet(routeBefore, bottomBefore, routeBefore, sy, map.Route);
-			map.AllSet(routeAfter, sy, routeAfter,topAfter ,map.Route);
-			map.AllSet(routeBefore, sy, routeAfter, sy, map.Route);
-		}
-		*/
-		++cnt;
 
+			if (topBefore < topAfter)
+			{
+				map.AllSet(routeBefore, bottomBefore, routeBefore, sy, map.Route);
+				map.AllSet(routeAfter, sy, routeAfter, topAfter, map.Route);
+			}
+			else
+			{
+				map.AllSet(routeAfter, bottomAfter, routeAfter, sy, map.Route);
+				map.AllSet(routeBefore, sy, routeBefore, topBefore, map.Route);
+			}
+			if (routeBefore > routeAfter) swap(routeBefore, routeAfter);
+			map.AllSet(routeBefore, sy, routeAfter, sy, map.Route);
+
+		}
+		++cnt;
 	}
 }
 
@@ -327,6 +359,7 @@ void Dig(Map& map, int x, int y)
 	int moveY[4] = { 1,-1,0,0 };
 	vector<int> act = { 0,1,2,3 };
 
+	//行動順をランダムにする
 	random_device get_rand_dev;
 	mt19937 get_rand_mt(get_rand_dev());
 	shuffle(act.begin(), act.end(), get_rand_mt);
@@ -334,7 +367,6 @@ void Dig(Map& map, int x, int y)
 
 	for (auto a : act)
 	{
-
 		int dx = moveX[a];
 		int dy = moveY[a];
 
@@ -342,7 +374,6 @@ void Dig(Map& map, int x, int y)
 		{
 			map.Set(x + dx, y + dy, map.Route);
 			Dig(map, x + dx * 2, y + dy * 2);
-			map.Show();
 		}
 	}
 
@@ -356,64 +387,40 @@ void DigStart(int width, int height, int sx, int sy)
 	Dig(map, xStart, yStart);
 	map.Show();
 }
+
 //分割法開始
-void DivideStart(int width, int height, int sx, int sy)
+void DivideStart(int width, int height)
 {
 	Map map(width, height);
-	int xStart = sx;
-	int yStart = sy;
-	//Dig(map, xStart, yStart);
 
+	//マップを区画に分ける（書き込まない。区画の四隅の座標を取得。）
 	AreaDivide(map);
+	//区画に収まる部屋を用意。（書き込まない、部屋の四隅の座標を取得）
 	CreateRoom(map);
+	//通路を伸ばす。通路はマップに書き込む
 	CreateRoute(map);
-
-//	for (auto a : map._divideArea)
-//	{
-//		map.AllSet(a[0], a[1], a[2], a[3], map.Route);
-//	}
-
-	
-	for (auto a : map._divideLine)
-	{
-		map.AllSet(a[0], a[1], a[2], a[3], map.Route);
-
-	}
-	
-	
 
 	for (auto a : map._divideRoom)
 	{
 		map.AllSet(a[0], a[1], a[2], a[3], map.Route);
 
 	}
-	//map.AllSet(1, 2, 10, 12, map.Route);
 	map.Show();
 }
 
 int main()
 {
-	//再帰関数をもちいるため、幅と高さを大きくすると、スタックオーバーフローにより処理が停止する。
-	//ループで書いた方が無難？
-	//幅、高さは奇数
-	//幅
-	const int width = 80;
-	//高さ
-	const int height = 50;
-
-	mt19937 mt{ random_device{}() };
-	uniform_int_distribution<int> distW(0, width - 2);
-	uniform_int_distribution<int> distH(0, height - 2);
-
-	int startX = distW(mt);
-	int startY = distH(mt);
-
-	if (startX % 2 == 0) ++startX;
-	if (startY % 2 == 0) ++startY;
-
-	//DigStart(width, height, startX, startY);
-	DivideStart(width, height, startX, startY);
-
-
+	if (h_Algorithm == Anahori)
+	{
+		int startX = GetRandomInt(0, h_Width - 2);
+		int startY = GetRandomInt(0, h_Height - 2);
+		if (startY % 2 == 0) ++startY;
+		if (startX % 2 == 0) ++startX;
+		DigStart(h_Width, h_Height, startX, startY);
+	}
+	else if (h_Algorithm == Divide)
+	{
+		DivideStart(h_Width, h_Height);
+	}
 	return 0;
 }
